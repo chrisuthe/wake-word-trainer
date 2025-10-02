@@ -38,7 +38,7 @@ A GPU-accelerated web application for training custom wake words for Home Assist
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/wake-word-trainer.git
+git clone https://github.com/chrisuthe/wake-word-trainer.git
 cd wake-word-trainer
 ```
 
@@ -224,8 +224,8 @@ This project uses the following open-source libraries:
 
 ## 📚 Support
 
-- 🐛 [Report Issues](https://github.com/yourusername/wake-word-trainer/issues)
-- 💬 [Discussions](https://github.com/yourusername/wake-word-trainer/discussions)
+- 🐛 [Report Issues](https://github.com/chrisuthe/wake-word-trainer/issues)
+- 💬 [Discussions](https://github.com/chrisuthe/wake-word-trainer/discussions)
 - 📖 [Home Assistant Voice Documentation](https://www.home-assistant.io/voice_control/)
 
 ---
