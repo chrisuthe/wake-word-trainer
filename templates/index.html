@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wake Word Trainer - Home Assistant</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="icon">🎙️</span>
+                <h1>Wake Word Trainer</h1>
+            </div>
+            <p class="subtitle">Train custom wake words for Home Assistant</p>
+        </header>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Training Form -->
+            <section class="card">
+                <h2>Create New Wake Word</h2>
+                
+                <form id="trainingForm">
+                    <!-- Wake Word Input -->
+                    <div class="form-group">
+                        <label for="wakeWord">
+                            Wake Word
+                            <span class="required">*</span>
+                        </label>
+                        <input 
+                            type="text" 
+                            id="wakeWord" 
+                            name="wake_word"
+                            placeholder="e.g., hey betty, okay assistant"
+                            required
+                            minlength="2"
+                            maxlength="50"
+                        >
+                        <small class="help-text">2-50 characters, use simple common words</small>
+                    </div>
+
+                    <!-- Method Selection -->
+                    <div class="form-group">
+                        <label>Training Method</label>
+                        <div class="method-cards">
+                            <div class="method-card" data-method="openwakeword">
+                                <input type="radio" name="method" value="openwakeword" id="methodOpen" checked>
+                                <label for="methodOpen">
+                                    <div class="method-header">
+                                        <span class="method-icon">⚡</span>
+                                        <span class="method-title">OpenWakeWord</span>
+                                        <span class="badge badge-easy">Easy</span>
+                                    </div>
+                                    <p class="method-description">
+                                        Quick training via Google Colab<br>
+                                        <strong>30-60 minutes</strong> • Works with any hardware
+                                    </p>
+                                </label>
+                            </div>
+                            
+                            <div class="method-card" data-method="microwakeword">
+                                <input type="radio" name="method" value="microwakeword" id="methodMicro">
+                                <label for="methodMicro">
+                                    <div class="method-header">
+                                        <span class="method-icon">🔬</span>
+                                        <span class="method-title">MicroWakeWord</span>
+                                        <span class="badge badge-advanced">Advanced</span>
+                                    </div>
+                                    <p class="method-description">
+                                        On-device detection for ESP32<br>
+                                        <strong>2-4 hours</strong> • Requires ESP32-S3
+                                    </p>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Preset Selection -->
+                    <div class="form-group">
+                        <label for="preset">Preset Configuration</label>
+                        <select id="preset" name="preset">
+                            <option value="">Custom Configuration</option>
+                            <option value="openwakeword_quick">OpenWakeWord - Quick (1000 samples)</option>
+                            <option value="openwakeword_standard" selected>OpenWakeWord - Standard (2000 samples)</option>
+                            <option value="openwakeword_high_quality">OpenWakeWord - High Quality (4000 samples)</option>
+                            <option value="microwakeword_standard">MicroWakeWord - Standard</option>
+                            <option value="microwakeword_high_quality">MicroWakeWord - High Quality</option>
+                        </select>
+                    </div>
+
+                    <!-- Advanced Settings -->
+                    <details class="advanced-settings">
+                        <summary>Advanced Settings</summary>
+                        
+                        <div class="settings-grid">
+                            <!-- Number of Samples -->
+                            <div class="form-group">
+                                <label for="numSamples">
+                                    Number of Samples
+                                    <span class="info-icon" title="More samples = better quality but longer training">ℹ️</span>
+                                </label>
+                                <input type="number" id="numSamples" name="num_samples" value="2000" min="500" max="10000" step="100">
+                                <small class="help-text">500-10000 (recommended: 2000-4000)</small>
+                            </div>
+
+                            <!-- Epochs (MicroWakeWord only) -->
+                            <div class="form-group micro-only">
+                                <label for="epochs">
+                                    Training Epochs
+                                    <span class="info-icon" title="More epochs = better training but risk of overfitting">ℹ️</span>
+                                </label>
+                                <input type="number" id="epochs" name="epochs" value="30" min="10" max="100" step="5">
+                                <small class="help-text">10-100 (recommended: 30-50)</small>
+                            </div>
+
+                            <!-- Batch Size (MicroWakeWord only) -->
+                            <div class="form-group micro-only">
+                                <label for="batchSize">
+                                    Batch Size
+                                    <span class="info-icon" title="Adjust based on available GPU memory">ℹ️</span>
+                                </label>
+                                <input type="number" id="batchSize" name="batch_size" value="512" min="128" max="2048" step="128">
+                                <small class="help-text">128-2048 (recommended: 512)</small>
+                            </div>
+
+                            <!-- Learning Rate (MicroWakeWord only) -->
+                            <div class="form-group micro-only">
+                                <label for="learningRate">
+                                    Learning Rate
+                                    <span class="info-icon" title="Controls how quickly the model learns">ℹ️</span>
+                                </label>
+                                <input type="number" id="learningRate" name="learning_rate" value="0.001" min="0.0001" max="0.01" step="0.0001">
+                                <small class="help-text">0.0001-0.01 (recommended: 0.001)</small>
+                            </div>
+
+                            <!-- Probability Cutoff (MicroWakeWord only) -->
+                            <div class="form-group micro-only">
+                                <label for="probabilityCutoff">
+                                    Probability Cutoff
+                                    <span class="info-icon" title="Higher = fewer false activations">ℹ️</span>
+                                </label>
+                                <input type="number" id="probabilityCutoff" name="probability_cutoff" value="0.97" min="0.80" max="0.99" step="0.01">
+                                <small class="help-text">0.80-0.99 (recommended: 0.95-0.98)</small>
+                            </div>
+
+                            <!-- Sliding Window Size (MicroWakeWord only) -->
+                            <div class="form-group micro-only">
+                                <label for="slidingWindow">
+                                    Sliding Window Size
+                                    <span class="info-icon" title="Larger = more stable but slower">ℹ️</span>
+                                </label>
+                                <input type="number" id="slidingWindow" name="sliding_window_size" value="5" min="3" max="10" step="1">
+                                <small class="help-text">3-10 (recommended: 5-6)</small>
+                            </div>
+                        </div>
+                    </details>
+
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary" id="submitBtn">
+                        <span class="btn-icon">🚀</span>
+                        Start Training
+                    </button>
+                </form>
+            </section>
+
+            <!-- Training Progress -->
+            <section class="card" id="progressSection" style="display: none;">
+                <h2>Training Progress</h2>
+                
+                <div class="progress-container">
+                    <div class="progress-header">
+                        <span id="progressStatus" class="status-badge">Initializing...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressBar"></div>
+                    </div>
+                    
+                    <p id="progressMessage">Preparing training environment...</p>
+                </div>
+
+                <div class="logs-container">
+                    <h3>Training Logs</h3>
+                    <div class="logs" id="trainingLogs"></div>
+                </div>
+
+                <div class="progress-actions">
+                    <button id="downloadBtn" class="btn btn-primary" style="display: none;">
+                        <span class="btn-icon">📱</span>
+                        Download Model for ESPHome
+                    </button>
+                </div>
+            </section>
+
+            <!-- Training History -->
+            <section class="card">
+                <h2>Training History</h2>
+                
+                <div id="jobsList" class="jobs-list">
+                    <p class="empty-state">No training jobs yet. Create your first wake word above!</p>
+                </div>
+            </section>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>
+                Wake Word Trainer for Home Assistant • 
+                <a href="https://www.home-assistant.io/voice_control/" target="_blank">Documentation</a> •
+                <a href="https://github.com/kahrendt/microWakeWord" target="_blank">MicroWakeWord</a> •
+                <a href="https://github.com/dscripka/openWakeWord" target="_blank">OpenWakeWord</a>
+            </p>
+        </footer>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

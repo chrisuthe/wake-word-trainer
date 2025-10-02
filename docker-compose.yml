@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  feature-generator:
+    build:
+      context: .
+      dockerfile: Dockerfile.feature-generator
+    container_name: feature-generator
+    networks:
+      - wake-word-network
+    ports:
+      - "5001:5001"
+    volumes:
+      # Share training jobs volume for feature generation
+      - ./training_jobs:/app/training_jobs
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  wake-word-trainer:
+    build: .
+    container_name: wake-word-trainer
+    networks:
+      - wake-word-network
+    depends_on:
+      - feature-generator
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist trained models and training jobs
+      - ./models:/app/models
+      - ./training_jobs:/app/training_jobs
+    environment:
+      - FLASK_ENV=production
+      - PORT=5000
+      - FEATURE_GENERATOR_URL=http://feature-generator:5001
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add GPU support for MicroWakeWord training
+  # Uncomment this service if you have NVIDIA GPU
+  # wake-word-trainer-gpu:
+  #   build: .
+  #   container_name: wake-word-trainer-gpu
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./models:/app/models
+  #     - ./training_jobs:/app/training_jobs
+  #   environment:
+  #     - FLASK_ENV=production
+  #     - PORT=5000
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
+  #   restart: unless-stopped
+
+networks:
+  wake-word-network:
+    driver: bridge
+
+volumes:
+  models:
+  training_jobs:

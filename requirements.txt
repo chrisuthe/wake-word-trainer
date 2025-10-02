@@ -1,0 +1,35 @@
+# Wake Word Trainer - Python Requirements
+
+# Web Framework
+Flask==3.0.0
+flask-socketio==5.3.5
+python-socketio==5.10.0
+
+# ASGI Server
+eventlet==0.33.3
+
+# Utilities
+python-dotenv==1.0.0
+requests>=2.31.0
+
+# Audio Processing
+# Install piper-sample-generator from GitHub (rhasspy project)
+git+https://github.com/rhasspy/piper-sample-generator.git@master#egg=piper-sample-generator
+soundfile>=0.12.1
+librosa>=0.10.1
+numpy>=1.24.0  # Adding numpy as it's needed by librosa
+
+# Dataset Management
+huggingface-hub>=0.19.4
+
+# Note: PyTorch/torchcodec/torchaudio moved to feature-generator container
+# to avoid CUDA conflicts with TensorFlow GPU training
+
+# Optional: For MicroWakeWord training
+# tensorflow>=2.13.0
+# numpy>=1.24.0
+
+# Note: TensorFlow is not installed by default as it's large
+# and only needed for actual MicroWakeWord training.
+# Users doing MicroWakeWord training should install it separately:
+# pip install tensorflow==2.13.0 (or tensorflow-gpu for GPU support)
