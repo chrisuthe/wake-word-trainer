@@ -67,6 +67,8 @@ async function handleFormSubmit(e) {
     const formData = new FormData(e.target);
     const data = {
         wake_word: formData.get('wake_word'),
+        author: formData.get('author'),
+        website: formData.get('website') || '',
         method: formData.get('method'),
         num_samples: parseInt(formData.get('num_samples') || 2000),
         epochs: parseInt(formData.get('epochs') || 30),
@@ -288,10 +290,7 @@ function displayJobHistory(jobs) {
             <div class="job-actions">
                 ${job.status === 'completed' || job.status === 'ready_for_training' ?
                     `<button class="btn btn-primary" onclick="downloadModel('${job.job_id}')">
-                        <span class="btn-icon">📱</span> Download Model
-                    </button>
-                    <button class="btn btn-secondary" onclick="downloadJob('${job.job_id}')">
-                        <span class="btn-icon">📥</span> Download All Files
+                        <span class="btn-icon">📱</span> Download for ESPHome
                     </button>` : ''}
                 ${job.status === 'running' ?
                     `<button class="btn btn-secondary" onclick="viewJob('${job.job_id}')">
@@ -319,14 +318,9 @@ function viewJob(jobId) {
         });
 }
 
-// Download model file for ESPHome
+// Download model package (tflite + json) for ESPHome
 function downloadModel(jobId) {
     window.location.href = `/api/jobs/${jobId}/download-model`;
-}
-
-// Download job files
-function downloadJob(jobId) {
-    window.location.href = `/api/jobs/${jobId}/download`;
 }
 
 // Handle download button click

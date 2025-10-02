@@ -31,9 +31,9 @@
                             Wake Word
                             <span class="required">*</span>
                         </label>
-                        <input 
-                            type="text" 
-                            id="wakeWord" 
+                        <input
+                            type="text"
+                            id="wakeWord"
                             name="wake_word"
                             placeholder="e.g., hey betty, okay assistant"
                             required
@@ -41,6 +41,36 @@
                             maxlength="50"
                         >
                         <small class="help-text">2-50 characters, use simple common words</small>
+                    </div>
+
+                    <!-- Author Name -->
+                    <div class="form-group">
+                        <label for="author">
+                            Author Name
+                            <span class="required">*</span>
+                        </label>
+                        <input
+                            type="text"
+                            id="author"
+                            name="author"
+                            placeholder="Your name"
+                            required
+                        >
+                        <small class="help-text">Your name or username for the model metadata</small>
+                    </div>
+
+                    <!-- Website (Optional) -->
+                    <div class="form-group">
+                        <label for="website">
+                            Website (Optional)
+                        </label>
+                        <input
+                            type="url"
+                            id="website"
+                            name="website"
+                            placeholder="https://your-website.com"
+                        >
+                        <small class="help-text">Optional: Your website or GitHub profile</small>
                     </div>
 
                     <!-- Method Selection -->
@@ -192,7 +222,7 @@
                 <div class="progress-actions">
                     <button id="downloadBtn" class="btn btn-primary" style="display: none;">
                         <span class="btn-icon">📱</span>
-                        Download Model for ESPHome
+                        Download for ESPHome
                     </button>
                 </div>
             </section>

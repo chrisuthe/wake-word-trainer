@@ -43,12 +43,14 @@ training_jobs = {}
 
 class TrainingJob:
     """Represents a wake word training job"""
-    
-    def __init__(self, job_id, wake_word, method, config):
+
+    def __init__(self, job_id, wake_word, method, config, author="", website=""):
         self.job_id = job_id
         self.wake_word = wake_word
         self.method = method
         self.config = config
+        self.author = author
+        self.website = website
         self.status = "pending"
         self.progress = 0
         self.logs = []
@@ -80,7 +82,7 @@ def emit_progress(job_id, progress, message, status=None):
         job.logs.append(f"[{datetime.now().strftime('%H:%M:%S')}] {message}")
         if status:
             job.status = status
-        
+
         socketio.emit('training_progress', {
             'job_id': job_id,
             'progress': progress,
@@ -88,6 +90,42 @@ def emit_progress(job_id, progress, message, status=None):
             'status': job.status,
             'logs': job.logs[-50:]
         })
+
+
+def generate_model_json(job_id, model_file_path):
+    """Generate ESPHome-compatible JSON manifest for the model"""
+    job = training_jobs.get(job_id)
+    if not job:
+        return None
+
+    job_dir = TRAINING_JOBS_DIR / job_id
+    wake_word_name = job.wake_word.replace(' ', '_').lower()
+
+    # Create JSON manifest
+    manifest = {
+        "type": "micro",
+        "wake_word": wake_word_name,
+        "author": job.author,
+        "website": job.website if job.website else "",
+        "model": f"{wake_word_name}.tflite",
+        "trained_languages": ["en"],
+        "version": 2,
+        "micro": {
+            "probability_cutoff": job.config.get('probability_cutoff', 0.97),
+            "sliding_window_size": job.config.get('sliding_window_size', 5),
+            "feature_step_size": 10,
+            "tensor_arena_size": 22348,
+            "minimum_esphome_version": "2024.7.0"
+        }
+    }
+
+    # Save JSON file next to the model
+    json_path = model_file_path.parent / f"{wake_word_name}.json"
+    with open(json_path, 'w') as f:
+        json.dump(manifest, f, indent=2)
+
+    logger.info(f"Generated JSON manifest: {json_path}")
+    return json_path
 
 
 def train_openwakeword(job_id, wake_word, config):
@@ -492,11 +530,14 @@ micro_wake_word:
                 logger.error(f"Model file not found. Searched: {model_file}")
                 raise RuntimeError("Model file not found after training")
 
+        # Generate JSON manifest for ESPHome
+        json_path = generate_model_json(job_id, model_file)
+
         job.model_path = model_file
         job.status = "completed"
         job.completed_at = datetime.now()
 
-        emit_progress(job_id, 100, "Training complete! Model ready for deployment.", "completed")
+        emit_progress(job_id, 100, f"Training complete! Model and JSON manifest ready for deployment.", "completed")
         
     except Exception as e:
         logger.error(f"Setup failed for job {job_id}: {e}")
@@ -519,14 +560,19 @@ def start_training():
         
         wake_word = data.get('wake_word', '').strip().lower()
         method = data.get('method', 'openwakeword')
-        
+        author = data.get('author', '').strip()
+        website = data.get('website', '').strip()
+
         if not wake_word:
             return jsonify({"error": "Wake word is required"}), 400
-        
+
+        if not author:
+            return jsonify({"error": "Author name is required"}), 400
+
         # Validate wake word
         if len(wake_word) < 2 or len(wake_word) > 50:
             return jsonify({"error": "Wake word must be 2-50 characters"}), 400
-        
+
         # Create training configuration
         config = {
             'num_samples': data.get('num_samples', 2000),
@@ -537,10 +583,10 @@ def start_training():
             'probability_cutoff': data.get('probability_cutoff', 0.97),
             'sliding_window_size': data.get('sliding_window_size', 5)
         }
-        
+
         # Create job
         job_id = str(uuid.uuid4())
-        job = TrainingJob(job_id, wake_word, method, config)
+        job = TrainingJob(job_id, wake_word, method, config, author, website)
         training_jobs[job_id] = job
         
         # Start training in background
@@ -614,7 +660,7 @@ def download_job_files(job_id):
 
 @app.route('/api/jobs/<job_id>/download-model', methods=['GET'])
 def download_model_file(job_id):
-    """Download the trained .tflite model file for ESPHome devices"""
+    """Download the trained model package (tflite + json) as a zip for ESPHome devices"""
     job = training_jobs.get(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
@@ -626,9 +672,9 @@ def download_model_file(job_id):
     if not job_dir.exists():
         return jsonify({"error": "Job files not found"}), 404
 
-    # Find the .tflite model file
-    # For MicroWakeWord, it's in trained_models/<wake_word>/tflite_stream_state_internal_quant/stream_state_internal_quant.tflite
     wake_word_name = job.wake_word.replace(' ', '_').lower()
+
+    # Find the .tflite model file
     model_paths = [
         job_dir / "trained_models" / wake_word_name / "tflite_stream_state_internal_quant" / "stream_state_internal_quant.tflite",
         job_dir / "trained_models" / wake_word_name / "stream_state_internal_quant.tflite",
@@ -644,12 +690,48 @@ def download_model_file(job_id):
     if not model_path:
         return jsonify({"error": "Model file not found in training output"}), 404
 
-    # Send the model file with proper name for ESPHome
+    # Find the JSON file
+    json_paths = [
+        job_dir / "trained_models" / wake_word_name / "tflite_stream_state_internal_quant" / f"{wake_word_name}.json",
+        job_dir / "trained_models" / wake_word_name / f"{wake_word_name}.json",
+        job_dir / f"{wake_word_name}.json",
+    ]
+
+    json_path = None
+    for path in json_paths:
+        if path.exists():
+            json_path = path
+            break
+
+    if not json_path:
+        return jsonify({"error": "JSON manifest not found in training output"}), 404
+
+    # Create a temporary directory for the zip
+    import tempfile
+    import zipfile
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir_path = Path(temp_dir)
+        zip_path = temp_dir_path / f"{wake_word_name}_model.zip"
+
+        # Create zip with model and json
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+            # Add model file with correct name
+            zipf.write(model_path, f"{wake_word_name}.tflite")
+            # Add JSON file
+            zipf.write(json_path, f"{wake_word_name}.json")
+
+        # Read zip into memory to return it
+        with open(zip_path, 'rb') as f:
+            zip_data = f.read()
+
+    # Create response with zip data
+    from io import BytesIO
     return send_file(
-        model_path,
+        BytesIO(zip_data),
         as_attachment=True,
-        download_name=f"{wake_word_name}.tflite",
-        mimetype="application/octet-stream"
+        download_name=f"{wake_word_name}_esphome.zip",
+        mimetype="application/zip"
     )
 
 
